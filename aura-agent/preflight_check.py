@@ -409,7 +409,7 @@ def run_pre_flight_checks():
     else:
         print_header("⚠️  Some checks failed. Please review the error messages above.")
         print_info("Common fixes:")
-        print_info("  • Make sure Docker PostgreSQL container is running")
+        print_info("  • Make sure git PostgreSQL container is running")
         print_info("  • Verify all API keys in .env file")
         print_info("  • Check network connectivity")
         print_info("  • Ensure all packages are installed: pip install -r requirements.txt")

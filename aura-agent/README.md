@@ -29,26 +29,43 @@ aura-agent/
 
 ## 🚀 Quick Start
 
-### 1. Verify Installation
+### 1. Run Pre-Flight Checks
+**IMPORTANT: Run this first to verify all connections!**
+```bash
+python preflight_check.py
+```
+
+This will verify:
+- ✅ Environment file configuration
+- ✅ Required Python packages
+- ✅ LangSmith API connection
+- ✅ PostgreSQL + pgvector database
+- ✅ Azure OpenAI (Chat & Embeddings)
+
+### 2. Verify Installation (Alternative)
 ```bash
 python test_setup.py
 ```
 
-### 2. Configure Environment Variables
+### 3. Configure Environment Variables
 Edit `.env` file and add your API keys:
 ```bash
-OPENAI_API_KEY=your_key_here
-AWS_ACCESS_KEY_ID=your_key_here
-AWS_SECRET_ACCESS_KEY=your_key_here
-LANGCHAIN_API_KEY=your_key_here
+# Already configured in your .env:
+LANGCHAIN_API_KEY=your_langsmith_key
+AZURE_OPENAI_API_KEY=your_azure_key
+AZURE_OPENAI_ENDPOINT=your_endpoint
+DB_USER=aura_user
+DB_PASSWORD=your_db_password
+DB_HOST=localhost
+DB_NAME=aura_db
 ```
 
-### 3. Load Knowledge Base
+### 4. Load Knowledge Base
 ```bash
 python ingest.py
 ```
 
-### 4. Run the CLI
+### 5. Run the CLI
 ```bash
 python src/main_cli.py --help
 ```
@@ -59,8 +76,8 @@ python src/main_cli.py --help
 - **LangGraph** (v1.0.1) - Stateful agent workflows
 - **LangSmith** (v0.4.38) - Tracing and monitoring
 - **ChromaDB** (v1.3.0) - Vector database
-- **OpenAI** (v2.6.1) - LLM provider
-- **AWS Boto3** (v1.40.61) - AWS integration
+- **PostgreSQL + pgvector** - Production vector store
+- **Azure OpenAI** (v2.6.1) - LLM provider (gpt-4.1 + embeddings)
 - **Sentence Transformers** (v5.1.2) - Embeddings
 
 ## 📦 Installed Dependencies
