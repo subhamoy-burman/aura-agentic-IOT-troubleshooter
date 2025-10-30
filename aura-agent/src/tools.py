@@ -6,8 +6,8 @@ from typing import Type, Optional, Dict, Any
 
 class IoTDiagnosticTool(BaseTool):
     """Base class for IoT diagnostic tools"""
-    name = "iot_diagnostic"
-    description = "Base diagnostic tool for IoT devices"
+    name: str = "iot_diagnostic"
+    description: str = "Base diagnostic tool for IoT devices"
     
     def _run(self, query: str) -> str:
         """Execute the tool"""
