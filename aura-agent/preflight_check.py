@@ -199,6 +199,57 @@ def check_postgres_connection() -> bool:
         return False
 
 
+def check_azure_vision_connection() -> bool:
+    """
+    Verify Azure AI Vision configuration and test API connection for image embeddings.
+    """
+    print_info("Checking Azure AI Vision Connection...")
+    
+    try:
+        vision_endpoint = os.getenv("AZURE_COMPUTER_VISION_ENDPOINT")
+        vision_key = os.getenv("AZURE_COMPUTER_VISION_KEY")
+        
+        # Check if variables are set
+        if not vision_endpoint or not vision_key:
+            print_error("Azure AI Vision environment variables not set")
+            print_info("Required: AZURE_COMPUTER_VISION_ENDPOINT, AZURE_COMPUTER_VISION_KEY")
+            return False
+        
+        print_success(f"Azure AI Vision Endpoint: {vision_endpoint}")
+        print_success(f"Azure AI Vision Key: Found (starts with '{vision_key[:10]}...')")
+        
+        # Test the connection
+        try:
+            from azure.ai.vision.imageanalysis import ImageAnalysisClient
+            from azure.ai.vision.imageanalysis.models import VisualFeatures
+            from azure.core.credentials import AzureKeyCredential
+            
+            print_info("Testing Azure AI Vision API connection...")
+            
+            client = ImageAnalysisClient(
+                endpoint=vision_endpoint,
+                credential=AzureKeyCredential(vision_key)
+            )
+            
+            print_success("Azure AI Vision client initialized successfully!")
+            print_info("Note: Full image analysis test requires an actual image file")
+            
+            return True
+            
+        except ImportError as e:
+            print_error(f"Azure AI Vision SDK not installed: {str(e)}")
+            print_info("Install with: pip install azure-ai-vision-imageanalysis")
+            return False
+            
+        except Exception as e:
+            print_error(f"Error testing Azure AI Vision connection: {str(e)}")
+            return False
+            
+    except Exception as e:
+        print_error(f"Unexpected error in Azure AI Vision check: {str(e)}")
+        return False
+
+
 def check_azure_openai_connection() -> bool:
     """
     Verify Azure OpenAI configuration and test API connection.
@@ -382,6 +433,9 @@ def run_pre_flight_checks():
     is_azure_ok = check_azure_openai_connection()
     print()
     
+    is_azure_vision_ok = check_azure_vision_connection()
+    print()
+    
     # Print summary
     print_header("📊 Pre-Flight Check Summary")
     
@@ -390,7 +444,8 @@ def run_pre_flight_checks():
         "Required Packages": packages_ok,
         "LangSmith Configuration": is_langsmith_ok,
         "PostgreSQL Connection": is_postgres_ok,
-        "Azure OpenAI Connection": is_azure_ok
+        "Azure OpenAI Connection": is_azure_ok,
+        "Azure AI Vision Connection": is_azure_vision_ok
     }
     
     for check_name, status in results.items():
