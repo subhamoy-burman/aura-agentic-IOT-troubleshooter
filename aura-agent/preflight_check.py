@@ -201,7 +201,87 @@ def check_postgres_connection() -> bool:
 
 def check_azure_vision_connection() -> bool:
     """
-    Verify Azure AI Vision configuration and test API connection for image embeddings.
+    Verify Azure AI Vision configuration and test API connection for image embeddings via REST API.
+    """
+    print_info("Checking Azure AI Vision Connection...")
+    
+    try:
+        vision_endpoint = os.getenv("AZURE_COMPUTER_VISION_ENDPOINT")
+        vision_key = os.getenv("AZURE_COMPUTER_VISION_KEY")
+        
+        if not vision_endpoint or not vision_key:
+            print_error("Azure AI Vision environment variables not set")
+            print_info("Required: AZURE_COMPUTER_VISION_ENDPOINT, AZURE_COMPUTER_VISION_KEY")
+            return False
+        
+        print_success(f"Azure AI Vision Endpoint: {vision_endpoint}")
+        print_success(f"Azure AI Vision Key: Found (starts with '{vision_key[:5]}...')")
+        
+        try:
+            import requests
+            from PIL import Image
+            import io
+            
+            print_info("Testing Azure AI Vision vectorization API...")
+            
+            # Create a small test image (1x1 pixel red image)
+            test_image = Image.new('RGB', (10, 10), color='red')
+            img_byte_arr = io.BytesIO()
+            test_image.save(img_byte_arr, format='PNG')
+            test_image_data = img_byte_arr.getvalue()
+            
+            # Ensure the endpoint URL doesn't have a trailing slash before appending the path
+            base_url = vision_endpoint.rstrip('/')
+            # This is the correct endpoint for a DEDICATED Computer Vision resource
+            #api_url = f"{vision_endpoint.rstrip('/')}/computervision/retrieval:vectorizeImage"
+            
+            # --- Updated API Call Based on Documentation ---
+            api_url = f"{base_url}/computervision/retrieval:vectorizeImage"
+            
+            # Use the current API version and specify the model version
+            params = {
+                "api-version": "2024-02-01", # Updated API version from docs
+                "model-version": "2023-04-15" # Multi-lingual model version from docs
+            }
+            
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "Ocp-Apim-Subscription-Key": vision_key
+            }
+            
+            response = requests.post(api_url, params=params, headers=headers, data=test_image_data, timeout=10)
+            
+            response.raise_for_status() # This will raise an error for 4xx or 5xx responses
+
+            result = response.json()
+            if "vector" in result and isinstance(result["vector"], list):
+                vector_dim = len(result["vector"])
+                print_success(f"Image vectorization API test successful! Vector dimension: {vector_dim}")
+                return True
+            else:
+                print_error("Image vectorization API returned unexpected format")
+                return False
+
+        except ImportError as e:
+            print_error(f"Required library not installed: {str(e)}")
+            print_info("Install with: pip install requests pillow")
+            return False
+        except requests.exceptions.HTTPError as e:
+            print_error(f"Image vectorization API failed with status {e.response.status_code}")
+            print_error(f"Response: {e.response.text}")
+            return False
+        except requests.exceptions.RequestException as e:
+            print_error(f"Error connecting to Azure AI Vision API: {str(e)}")
+            return False
+        except Exception as e:
+            print_error(f"Error testing Azure AI Vision connection: {str(e)}")
+            return False
+            
+    except Exception as e:
+        print_error(f"Unexpected error in Azure AI Vision check: {str(e)}")
+        return False
+    """
+    Verify Azure AI Vision configuration and test API connection for image embeddings via REST API.
     """
     print_info("Checking Azure AI Vision Connection...")
     
@@ -218,27 +298,59 @@ def check_azure_vision_connection() -> bool:
         print_success(f"Azure AI Vision Endpoint: {vision_endpoint}")
         print_success(f"Azure AI Vision Key: Found (starts with '{vision_key[:10]}...')")
         
-        # Test the connection
+        # Test the connection via REST API (Image Vectorization endpoint)
         try:
-            from azure.ai.vision.imageanalysis import ImageAnalysisClient
-            from azure.ai.vision.imageanalysis.models import VisualFeatures
-            from azure.core.credentials import AzureKeyCredential
+            import requests
+            from PIL import Image
+            import io
             
-            print_info("Testing Azure AI Vision API connection...")
+            print_info("Testing Azure AI Vision vectorization API...")
             
-            client = ImageAnalysisClient(
-                endpoint=vision_endpoint,
-                credential=AzureKeyCredential(vision_key)
-            )
+            # Create a small test image (1x1 pixel red image)
+            test_image = Image.new('RGB', (1, 1), color='red')
+            img_byte_arr = io.BytesIO()
+            test_image.save(img_byte_arr, format='PNG')
+            img_byte_arr.seek(0)
+            test_image_data = img_byte_arr.read()
             
-            print_success("Azure AI Vision client initialized successfully!")
-            print_info("Note: Full image analysis test requires an actual image file")
+            # The specific API endpoint for image vectorization
+            api_url = f"{vision_endpoint.rstrip('/')}/computervision/retrieval:vectorizeImage"
+            params = {
+                "api-version": "2024-02-01"
+            }
             
-            return True
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "Ocp-Apim-Subscription-Key": vision_key
+            }
+            
+            response = requests.post(api_url, params=params, headers=headers, data=test_image_data, timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if "vector" in result and isinstance(result["vector"], list):
+                    vector_dim = len(result["vector"])
+                    print_success(f"Image vectorization API test successful! Vector dimension: {vector_dim}")
+                    return True
+                else:
+                    print_error("Image vectorization API returned unexpected format")
+                    return False
+            else:
+                print_error(f"Image vectorization API failed with status {response.status_code}")
+                print_error(f"Response: {response.text}")
+                return False
             
         except ImportError as e:
-            print_error(f"Azure AI Vision SDK not installed: {str(e)}")
-            print_info("Install with: pip install azure-ai-vision-imageanalysis")
+            print_error(f"Required library not installed: {str(e)}")
+            print_info("Install with: pip install requests pillow")
+            return False
+            
+        except requests.exceptions.Timeout:
+            print_error("Azure AI Vision API request timed out")
+            return False
+            
+        except requests.exceptions.RequestException as e:
+            print_error(f"Error connecting to Azure AI Vision API: {str(e)}")
             return False
             
         except Exception as e:
@@ -409,7 +521,7 @@ def run_pre_flight_checks():
     """
     Executes a series of checks to ensure the development environment is configured correctly.
     """
-    print_header("🚀 Aura Agent Pre-Flight Checks")
+    print_header("Aura Agent Pre-Flight Checks")
     
     # Load environment variables
     load_dotenv()

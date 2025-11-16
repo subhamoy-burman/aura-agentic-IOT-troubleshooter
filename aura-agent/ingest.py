@@ -48,20 +48,35 @@ def get_image_embedding_from_azure_vision(image_data: bytes) -> list[float]:
     vision_endpoint = os.environ.get("AZURE_COMPUTER_VISION_ENDPOINT")
     vision_key = os.environ.get("AZURE_COMPUTER_VISION_KEY")
     
-    # The specific API endpoint for image vectorization
-    api_url = f"{vision_endpoint}/computervision/retrieval:vectorizeImage?api-version=2023-02-01-preview&model-version=latest"
+    if not vision_endpoint or not vision_key:
+        print("ERROR: Azure Computer Vision environment variables not set.")
+        return None
+
+    # Ensure the endpoint URL doesn't have a trailing slash before appending the path
+    base_url = vision_endpoint.rstrip('/')
     
+    # --- Updated API Call Based on Documentation ---
+    # The specific API endpoint for image vectorization
+    api_url = f"{base_url}/computervision/retrieval:vectorizeImage"
+    
+    # Parameters: Updated API version and specific model version
+    params = {
+        "api-version": "2024-02-01", # Updated API version from docs
+        "model-version": "2023-04-15" # Specific model version (multi-lingual)
+    }
+
     headers = {
         "Content-Type": "application/octet-stream",
         "Ocp-Apim-Subscription-Key": vision_key
     }
+    
 
     try:
-        response = requests.post(api_url, headers=headers, data=image_data)
+        response = requests.post(api_url, params=params, headers=headers, data=image_data, timeout=15)
         response.raise_for_status() 
         return response.json()["vector"]
     except Exception as e:
-        print(f"  ❌ ERROR: Failed to generate image embedding: {e}")
+        print(f"ERROR: Failed to generate image embedding: {e}")
         return None
 
 
