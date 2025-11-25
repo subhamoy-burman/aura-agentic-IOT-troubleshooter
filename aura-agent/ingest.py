@@ -12,9 +12,6 @@ import psycopg2
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import AzureOpenAIEmbeddings
-from azure.ai.vision.imageanalysis import ImageAnalysisClient
-from azure.core.credentials import AzureKeyCredential
-from azure.ai.vision.imageanalysis.models import VisualFeatures
 import requests
 
 # Setup logging
@@ -29,7 +26,7 @@ load_dotenv()
 
 # --- DATABASE CONFIG ---
 DB_CONNECTION_STRING = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-KNOWLEDGE_BASE_PATH = "aura-agent/knowledge_base/"
+KNOWLEDGE_BASE_PATH = "knowledge_base/"
 
 
 # --- AZURE CLIENT INITIALIZATION ---
