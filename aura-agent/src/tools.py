@@ -1,33 +1,63 @@
 # Tools and Functions for the Aura Agent
-# This file will contain all the tools and functions used by the agent
+# This file contains all the tools and functions used by the agent
 
 from langchain.tools import BaseTool
 from typing import Type, Optional, Dict, Any
 import os
+import logging
 from langchain.tools import tool
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 
-CONNECTION_STRING = PGVector.connection_string_from_db_params(
-    driver="psycopg2",
-    host=os.environ.get("DB_HOST"),
-    port=int(os.environ.get("DB_PORT")),
-    database=os.environ.get("DB_NAME"),
-    user=os.environ.get("DB_USER"),
-    password=os.environ.get("DB_PASSWORD"),
-)
+# Configure logging
+logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "aura_iot_troubleshooting_guides"
-
-embeddings = AzureOpenAIEmbeddings(azure_deployment=os.environ.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME"))
-
-vector_store = PGVector(
-    connection_string=CONNECTION_STRING,
-    collection_name=COLLECTION_NAME,
-    embedding_function=embeddings
-)
-
-retriever = vector_store.as_retriever(search_kwargs={"k": 3}) # Retrieve top 3 chunks
+class RAGTool:
+    """
+    Lazy-initialized RAG tool for searching troubleshooting guides.
+    
+    This class implements lazy initialization to prevent connection failures
+    at import time. The vector store connection is only created when first used.
+    """
+    _vector_store = None
+    _retriever = None
+    
+    @classmethod
+    def get_retriever(cls):
+        """Get or create the vector store retriever."""
+        if cls._retriever is None:
+            try:
+                logger.info("Initializing pgvector connection...")
+                
+                CONNECTION_STRING = PGVector.connection_string_from_db_params(
+                    driver="psycopg2",
+                    host=os.environ.get("DB_HOST"),
+                    port=int(os.environ.get("DB_PORT")),
+                    database=os.environ.get("DB_NAME"),
+                    user=os.environ.get("DB_USER"),
+                    password=os.environ.get("DB_PASSWORD"),
+                )
+                
+                COLLECTION_NAME = "aura_iot_troubleshooting_guides"
+                
+                embeddings = AzureOpenAIEmbeddings(
+                    azure_deployment=os.environ.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME")
+                )
+                
+                cls._vector_store = PGVector(
+                    connection_string=CONNECTION_STRING,
+                    collection_name=COLLECTION_NAME,
+                    embedding_function=embeddings
+                )
+                
+                cls._retriever = cls._vector_store.as_retriever(search_kwargs={"k": 3})
+                logger.info("✅ Vector store initialized successfully")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize vector store: {e}")
+                raise
+        
+        return cls._retriever
 
 @tool
 def search_troubleshooting_guides(query: str) -> str:
@@ -35,10 +65,24 @@ def search_troubleshooting_guides(query: str) -> str:
     Searches the knowledge base for troubleshooting guides related to a specific problem or error code.
     Use this to find solutions for user issues.
     """
-    print(f"--- RAG TOOL: Searching docs for '{query}' ---")
-    docs = retriever.invoke(query)
-    # Format the retrieved documents into a single string for the LLM
-    return "\n\n".join([f"Source: {doc.metadata.get('source', 'N/A')}\nContent: {doc.page_content}" for doc in docs])
+    try:
+        print(f"--- RAG TOOL: Searching docs for '{query}' ---")
+        retriever = RAGTool.get_retriever()
+        docs = retriever.invoke(query)
+        
+        if not docs:
+            return "No relevant troubleshooting guides found for this query."
+        
+        # Format the retrieved documents into a single string for the LLM
+        result = "\n\n".join([
+            f"Source: {doc.metadata.get('source', 'N/A')}\nContent: {doc.page_content}" 
+            for doc in docs
+        ])
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in search_troubleshooting_guides: {e}")
+        return f"Error searching knowledge base: {str(e)}. Please try rephrasing your query."
 
 
 @tool

@@ -1,17 +1,18 @@
 # LangGraph State Graph for Aura Agent
-# This file will contain the main graph logic for the agent workflow
+# This file contains the main graph logic for the agent workflow
 
 from langgraph.graph import StateGraph, END
-from src.agent_state import AgentState
-from typing import Dict, Any
-import os
-from typing import Literal
-from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import BaseMessage
-from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
+from langchain_openai import AzureChatOpenAI
+from langchain_core.messages import BaseMessage, SystemMessage
+from typing import Dict, Any, Literal
+import os
+from dotenv import load_dotenv
+
+# Load environment variables (critical for Azure OpenAI credentials)
+load_dotenv()
+
 from .agent_state import AgentState
-from langchain_core.messages import SystemMessage
 # Import all your tools
 from .tools import check_device_connectivity, get_device_error_logs, search_troubleshooting_guides
 
@@ -32,6 +33,7 @@ tool_node = ToolNode(tools)
 
 llm = AzureChatOpenAI(
     azure_deployment=os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME"),
+    api_version=os.environ.get("OPENAI_API_VERSION", "2024-02-15-preview"),
     temperature=0).bind_tools(tools)
 
 def call_model(state: AgentState) -> dict:
@@ -45,7 +47,7 @@ def call_model(state: AgentState) -> dict:
     - It autonomously decides: "I should call search_troubleshooting_guides with query='E-401'"
     - Returns an AIMessage with tool_calls=[{name: 'search_troubleshooting_guides', args: {...}}]
     """
-    print("---CALLING LLM---")
+    print(f"---CALLING LLM for user: {state.get('user_id', 'unknown')}---")
     messages = state["chat_history"]
     
     # Ensure system prompt is always at the start of the conversation
@@ -54,7 +56,8 @@ def call_model(state: AgentState) -> dict:
     
     response = llm.invoke(messages)
     # The response is an AIMessage that can contain tool_calls
-    return {"chat_history": state["chat_history"] + [response]}
+    # Thanks to the 'add' reducer in AgentState, this will APPEND to chat_history
+    return {"chat_history": [response]}
 
 # Define the conditional edge
 def should_continue(state: AgentState) -> Literal["tools", "end"]:
